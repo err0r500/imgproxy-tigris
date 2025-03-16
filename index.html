@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImgProxy Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .image-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="image-container">
+        <!-- imgProxy in docker
+        <img src="http://localhost:8080/_/rs:fill:1160:532:1/g:ce/wm:0.5:soea:10:10:0.2/aHR0cHM6Ly93d3cuem9vcGx1cy5jby51ay9tYWdhemluZS93cC1jb250ZW50L3VwbG9hZHMvMjAyMS8wMS9zdHJpcGVkLWdyZXkta2l0dGVuLTc2OHg1MTIuanBn" /> -->
+
+        tigris proxy :
+        <img src="http://localhost:8081/_/rs:fill:1160:532:1/g:ce/wm:0.5:soea:10:10:0.2/aHR0cHM6Ly93d3cuem9vcGx1cy5jby51ay9tYWdhemluZS93cC1jb250ZW50L3VwbG9hZHMvMjAyMS8wMS9zdHJpcGVkLWdyZXkta2l0dGVuLTc2OHg1MTIuanBn" />
+
+        <!-- imgProxy standalone
+        <img src="http://localhost:8082/_/rs:fill:1160:532:1/g:ce/wm:0.5:soea:10:10:0.2/aHR0cHM6Ly93d3cuem9vcGx1cy5jby51ay9tYWdhemluZS93cC1jb250ZW50L3VwbG9hZHMvMjAyMS8wMS9zdHJpcGVkLWdyZXkta2l0dGVuLTc2OHg1MTIuanBn" /> -->
+
+    </div>
+</body>
+</html>
