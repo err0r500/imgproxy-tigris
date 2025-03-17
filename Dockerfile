@@ -1,5 +1,5 @@
 # Build stage for Go proxy
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -31,5 +31,5 @@ ENV PROXY_HTTP_PORT=8080
 
 EXPOSE 8080
 
-# Start proxy (which will start imgproxy)
+# Start proxy (which will start tigris-proxy & imgproxy)
 CMD ["/usr/local/bin/start_processes.sh"]

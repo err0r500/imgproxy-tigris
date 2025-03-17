@@ -19,22 +19,11 @@ services:
     volumes:
       - ./init-localstack.sh:/docker-entrypoint-initaws.d/init-localstack.sh
 
-  imgproxy:
-    image: ghcr.io/imgproxy/imgproxy:latest
+  app:
+    build: .
+    env_file: .env.test
     ports:
-      - "8082:8080"
-    environment:
-      - IMGPROXY_BIND=:8080
-
-  # app:
-  #   build: .
-  #   env_file: .env.test
-  #   environment:
-  #     - AWS_ACCESS_KEY_ID=test
-  #     - AWS_SECRET_ACCESS_KEY=test
-  #   ports:
-  #     - "8080:8080"
-  #     - "8081:8081"
-  #   depends_on:
-  #     localstack:
-  #       condition: service_healthy
+      - "8080:8080"
+    depends_on:
+      localstack:
+        condition: service_healthy
