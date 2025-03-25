@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start the first process
-imgproxy &
+IMGPROXY_BIND=127.0.0.1:8081 imgproxy &
 
 # Start the second process
 proxy &

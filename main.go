@@ -20,39 +20,39 @@ import (
 )
 
 type Config struct {
-	S3Endpoint       string
-	S3Bucket         string
-	S3Region         string
-	ImgproxyEndpoint string
+	S3Endpoint      string
+	S3Bucket        string
+	S3Folder        string
+	TigrisProxyBind string
 }
 
 func main() {
 	cfg := Config{
-		S3Endpoint:       os.Getenv("PROXY_S3_ENDPOINT"),
-		S3Bucket:         os.Getenv("PROXY_S3_BUCKET"),
-		S3Region:         os.Getenv("PROXY_S3_REGION"),
-		ImgproxyEndpoint: os.Getenv("PROXY_IMGPROXY_ENDPOINT"),
+		S3Endpoint:      os.Getenv("S3_ENDPOINT"),
+		S3Bucket:        os.Getenv("S3_BUCKET"),
+		S3Folder:        os.Getenv("S3_FOLDER"),
+		TigrisProxyBind: os.Getenv("IMGPROXY_BIND"),
 	}
-	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3Region == "" {
+	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" {
 		slog.Error("Missing required environment variable(s)", "config", cfg)
 		os.Exit(1)
 	}
-	if cfg.ImgproxyEndpoint == "" {
-		cfg.ImgproxyEndpoint = "http://localhost:8080"
+	if cfg.TigrisProxyBind == "" {
+		cfg.TigrisProxyBind = ":8080"
 	}
+
+	// Initialize the proxy
+    target, err := url.Parse("http://127.0.0.1:8081")
+	if err != nil {
+		slog.Error("Failed to parse imgproxy local endpoint", "error", err)
+		os.Exit(1)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	uploader := manager.NewUploader(initS3Client(cfg), func(u *manager.Uploader) {
 		u.PartSize = 5 * 1024 * 1024
 		u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(10 * 1024 * 1024)
 	})
-
-	// Initialize the proxy
-	target, err := url.Parse(cfg.ImgproxyEndpoint)
-	if err != nil {
-		slog.Error("Failed to parse imgproxy endpoint", "error", err)
-		os.Exit(1)
-	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		if resp.StatusCode == http.StatusOK {
@@ -74,7 +74,7 @@ func main() {
 		proxy.ServeHTTP(w, r)
 	})
 
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", os.Getenv("PROXY_HTTP_PORT")), nil); err != nil {
+	if err := http.ListenAndServe(fmt.Sprintf("%s", cfg.TigrisProxyBind), nil); err != nil {
 		slog.Error("Server failed", "error", err)
 	}
 }
@@ -84,7 +84,7 @@ func uploadToS3(ctx context.Context, uploader *manager.Uploader, cfg Config, r i
 
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(cfg.S3Bucket),
-		Key:    aws.String(key),
+		Key:    aws.String(fmt.Sprintf("%s%s", cfg.S3Folder, key)),
 		Body:   r,
 	})
 
@@ -112,7 +112,7 @@ func initS3Client(cfg Config) *s3.Client {
 
 	svc := s3.NewFromConfig(sdkConfig, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(cfg.S3Endpoint)
-		o.Region = cfg.S3Region
+		o.Region = "auto"
 		o.UsePathStyle = true
 	})
 
