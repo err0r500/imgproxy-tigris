@@ -20,7 +20,6 @@ import (
 )
 
 type Config struct {
-	S3Endpoint      string
 	S3Bucket        string
 	S3Folder        string
 	TigrisProxyBind string
@@ -28,12 +27,11 @@ type Config struct {
 
 func main() {
 	cfg := Config{
-		S3Endpoint:      os.Getenv("S3_ENDPOINT"),
 		S3Bucket:        os.Getenv("S3_BUCKET"),
 		S3Folder:        os.Getenv("S3_FOLDER"),
 		TigrisProxyBind: os.Getenv("IMGPROXY_BIND"),
 	}
-	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" {
+	if cfg.S3Bucket == "" {
 		slog.Error("Missing required environment variable(s)", "config", cfg)
 		os.Exit(1)
 	}
@@ -49,7 +47,7 @@ func main() {
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
-	uploader := manager.NewUploader(initS3Client(cfg), func(u *manager.Uploader) {
+	uploader := manager.NewUploader(initS3Client(), func(u *manager.Uploader) {
 		u.PartSize = 5 * 1024 * 1024
 		u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(10 * 1024 * 1024)
 	})
@@ -103,7 +101,7 @@ func generateS3Key(path string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func initS3Client(cfg Config) *s3.Client {
+func initS3Client() *s3.Client {
 	sdkConfig, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		slog.Error("Failed to initialize AWS config", "error", err)
@@ -111,7 +109,7 @@ func initS3Client(cfg Config) *s3.Client {
 	}
 
 	svc := s3.NewFromConfig(sdkConfig, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(cfg.S3Endpoint)
+		o.BaseEndpoint = aws.String("https://fly.storage.tigris.dev")
 		o.Region = "auto"
 		o.UsePathStyle = true
 	})
