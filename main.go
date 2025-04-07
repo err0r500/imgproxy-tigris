@@ -12,6 +12,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -20,16 +22,46 @@ import (
 )
 
 type Config struct {
-	S3Bucket        string
-	S3Folder        string
-	TigrisProxyBind string
+	S3Bucket           string
+	S3Folder           string
+	TigrisProxyBind    string
+	HealthCheckTimeout time.Duration
+}
+
+func waitForHealth(target string, timeout time.Duration) error {
+	client := &http.Client{Timeout: 2 * time.Second}
+	endTime := time.Now().Add(timeout)
+
+	for time.Now().Before(endTime) {
+		resp, err := client.Get(fmt.Sprintf("%s/health", target))
+		if err == nil {
+			if resp.StatusCode == http.StatusOK {
+				resp.Body.Close()
+				return nil
+			}
+			resp.Body.Close()
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("health check failed after %v", timeout)
 }
 
 func main() {
+	healthCheckTimeout := 30 * time.Second
+	if os.Getenv("HEALTH_CHECK_TIMEOUT_IN_SEC") != "" {
+		t, err := strconv.ParseInt(os.Getenv("HEALTH_CHECK_TIMEOUT_IN_SEC"), 10, 64)
+		if err != nil {
+			slog.Error("Failed to parse HEALTH_CHECK_TIMEOUT_IN_SEC", "error", err)
+			os.Exit(1)
+		}
+		healthCheckTimeout = time.Duration(t) * time.Second
+	}
+
 	cfg := Config{
-		S3Bucket:        os.Getenv("S3_BUCKET"),
-		S3Folder:        os.Getenv("S3_FOLDER"),
-		TigrisProxyBind: os.Getenv("IMGPROXY_BIND"),
+		S3Bucket:           os.Getenv("S3_BUCKET"),
+		S3Folder:           os.Getenv("S3_FOLDER"),
+		TigrisProxyBind:    os.Getenv("IMGPROXY_BIND"),
+		HealthCheckTimeout: healthCheckTimeout,
 	}
 	if cfg.S3Bucket == "" {
 		slog.Error("Missing required environment variable(s)", "config", cfg)
@@ -39,19 +71,29 @@ func main() {
 		cfg.TigrisProxyBind = ":8080"
 	}
 
-	// Initialize the proxy
-    target, err := url.Parse("http://127.0.0.1:8081")
-	if err != nil {
-		slog.Error("Failed to parse imgproxy local endpoint", "error", err)
-		os.Exit(1)
-	}
-	proxy := httputil.NewSingleHostReverseProxy(target)
-
+	// Initialize S3 uploader
 	uploader := manager.NewUploader(initS3Client(), func(u *manager.Uploader) {
 		u.PartSize = 5 * 1024 * 1024
 		u.BufferProvider = manager.NewBufferedReadSeekerWriteToPool(10 * 1024 * 1024)
 	})
 
+	// Initialize the proxy
+	targetURL := "http://127.0.0.1:8081"
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		slog.Error("Failed to parse imgproxy local endpoint", "error", err)
+		os.Exit(1)
+	}
+
+	// Wait for the health endpoint to be ready
+	slog.Info("Waiting for imgproxy to be ready...")
+	if err := waitForHealth(targetURL, cfg.HealthCheckTimeout); err != nil {
+		slog.Error("Health check failed", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("imgproxy is ready")
+
+	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		if resp.StatusCode == http.StatusOK {
 			var buf bytes.Buffer
