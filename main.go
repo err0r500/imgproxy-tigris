@@ -96,16 +96,27 @@ func main() {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		if resp.StatusCode == http.StatusOK {
-			var buf bytes.Buffer
-			teeReader := io.TeeReader(resp.Body, &buf)
+			// Read the entire response body into a buffer
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				slog.Error("Failed to read response body", "error", err)
+				return err
+			}
 
+			// Create two separate readers from the same bytes
+			// One for the response and one for S3 upload
+			respReader := bytes.NewReader(bodyBytes)
+			s3Reader := bytes.NewReader(bodyBytes)
+
+			// Replace the response body with our buffered copy
+			resp.Body = io.NopCloser(respReader)
+
+			// Upload the complete file to S3 in a goroutine
 			go func() {
-				if err := uploadToS3(context.Background(), uploader, cfg, &buf, resp.Request.URL.Path); err != nil {
+				if err := uploadToS3(context.Background(), uploader, cfg, s3Reader, resp.Request.URL.Path); err != nil {
 					slog.Error("S3 upload failed", "error", err)
 				}
 			}()
-
-			resp.Body = io.NopCloser(teeReader)
 		}
 		return nil
 	}
